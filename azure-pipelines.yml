@@ -9,38 +9,58 @@ trigger:
 pool:
   vmImage: ubuntu-latest
 
-trigger:
-- main   # runs when code is pushed to main branch
+stages:
+- stage: Validate
+  displayName: "Terraform Validate Stage"
+  jobs:
+  - job: ValidateJob
+    steps:
 
-pool:
-  vmImage: 'ubuntu-latest'
+    # Install Terraform
+    - task: TerraformInstaller@1
+      inputs:
+        terraformVersion: '$(terraformVersion)'
 
-variables:
-  terraformVersion: '1.5.0'
+    # Init
+    - script: terraform init
+      displayName: "Terraform Init"
 
-steps:
+    # Validate
+    - script: terraform validate
+      displayName: "Terraform Validate"
 
-# Install Terraform
-- task: TerraformInstaller@1
-  inputs:
-    terraformVersion: '$(terraformVersion)'
+- stage: Deploy
+  displayName: "Terraform Deploy Stage"
+  dependsOn: Validate
+  condition: succeeded()
+  jobs:
+  - job: DeployJob
+    steps:
 
-# Terraform Init
-- script: |
-    terraform init
-  displayName: 'Terraform Init'
+    # Install Terraform
+    - task: TerraformInstaller@1
+      inputs:
+        terraformVersion: '$(terraformVersion)'
 
-# Terraform Validate
-- script: |
-    terraform validate
-  displayName: 'Terraform Validate'
+    # Azure Login (Service Connection)
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: 'Azure subscription 1'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          az account show
 
-# Terraform Plan
-- script: |
-    terraform plan -out=tfplan
-  displayName: 'Terraform Plan'
+    # Init
+    - script: terraform init
+      displayName: "Terraform Init"
 
-# Terraform Apply
-- script: |
-    terraform apply -auto-approve tfplan
-  displayName: 'Terraform Apply'
+    # Plan
+    - script: terraform plan -out=tfplan
+      displayName: "Terraform Plan"
+
+    # Apply
+    - script: terraform apply -auto-approve tfplan
+      displayName: "Terraform Apply"
+       
+
